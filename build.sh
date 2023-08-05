@@ -2,6 +2,15 @@
 
 set -xe
 
-FLAGS="-Wall -Wextra -std=c99 -pedantic -O2"
+files=main.c
+outname=backlight-control
 
-gcc $FLAGS -o backlight-control main.c
+flags="-g -Werror=declaration-after-statement -Wall -Wextra -pedantic -std=c99"
+incl=
+libs=
+
+if [[ $1 = "prod" ]]; then
+    flags=${flags/-g/-O2}
+fi
+
+gcc $flags -o $outname $files $incl $libs

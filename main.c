@@ -86,7 +86,7 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    f = fopen("/sys/class/backlight/amdgpu_bl0/brightness", "r+");
+    f = fopen("/sys/class/backlight/amdgpu_bl1/brightness", "r+");
     if (f == NULL) {
         perror("Failed to open brightness file");
         return 1;
