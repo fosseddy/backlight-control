@@ -4,30 +4,32 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-#define MAXVALUE 255
+#define MAXVAL 255
 #define STEP 17
 
 extern char **environ;
+static char display_buf[32];
 
-void get_brightness_level(char *buf, int value)
+static void get_brightness_level(int value)
 {
-    int len, filled, i, offset;
+    int len, filled, offset;
 
-    len = MAXVALUE / STEP;
+    len = MAXVAL / STEP;
     filled = value / STEP;
-    offset = sprintf(buf, "%2d/%2d ", filled, len);
+    offset = sprintf(display_buf, "%2d/%2d ", filled, len);
 
-    for (i = 0; i < len; i++) {
+    for (int i = 0; i < len; i++) {
+        char c = '-';
+
         if (i < filled) {
-            buf[i + offset] = '+';
-        } else {
-            buf[i + offset] = '-';
+            c = '+';
         }
+        display_buf[i + offset] = c;
     }
-    buf[i + offset] = '\0';
+    display_buf[len + offset] = '\0';
 }
 
-int show_notification(int value)
+static int show_notification(int value)
 {
     pid_t pid;
     int status;
@@ -39,11 +41,10 @@ int show_notification(int value)
     }
 
     if (pid == 0) {
-        char buf[32];
-        char *argv[] = {"/bin/dunstify", "Brightness", buf, "-r", "110001",
-                        "-t", "2000", NULL};
+        char *argv[] = {"/bin/dunstify", "Brightness", display_buf, "-r", "2",
+                        "-t", "500", NULL};
 
-        get_brightness_level(buf, value);
+        get_brightness_level(value);
         execve(argv[0], argv, environ);
         perror("Failed to send notification");
         return 1;
@@ -53,7 +54,7 @@ int show_notification(int value)
     return WEXITSTATUS(status);
 }
 
-void print_usage(FILE *stream)
+static void print_usage(FILE *stream)
 {
     fprintf(stream, "Usage: backlight-control [COMMAND]\n"
                     "Changes brightness of a screen\n"
@@ -71,7 +72,7 @@ void print_usage(FILE *stream)
 int main(int argc, char **argv)
 {
     FILE *f;
-    int value, rc;
+    int value;
 
     argv++;
     argc--;
@@ -92,47 +93,51 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    rc = fscanf(f, "%d", &value);
-    if (rc != 1) {
-        fprintf(stderr, "Failed to read brightness value from file\n");
+    if (fscanf(f, "%d", &value) != 1) {
+        fprintf(stderr, "Failed to read brightness value\n");
         return 1;
-    }
-
-    if (strcmp(*argv, "set") == 0) {
-        if (argc < 2) {
-            fprintf(stderr, "Not enough arguments\n\n");
-            print_usage(stderr);
-            return 1;
-        }
-        argv++;
-        value = atoi(*argv);
-        if (value > MAXVALUE) value = MAXVALUE;
-        if (value < 0) value = 0;
-        fprintf(f, "%d", value);
-        return 0;
     }
 
     if (strcmp(*argv, "inc") == 0) {
         value += STEP;
-        if (value > MAXVALUE) value = MAXVALUE;
+        if (value > MAXVAL) {
+            value = MAXVAL;
+        }
         fprintf(f, "%d", value);
-        rc = show_notification(value);
-        return rc;
+        return show_notification(value);
     }
 
     if (strcmp(*argv, "dec") == 0) {
         value -= STEP;
-        if (value < 0) value = 0;
+        if (value < 0) {
+            value = 0;
+        }
         fprintf(f, "%d", value);
-        rc = show_notification(value);
-        return rc;
+        return show_notification(value);
     }
 
     if (strcmp(*argv, "show") == 0) {
-        char buf[32];
-        get_brightness_level(buf, value);
-        printf("%s\n", buf);
+        get_brightness_level(value);
+        printf("%s\n", display_buf);
         return 0;
+    }
+
+    if (strcmp(*argv, "set") == 0) {
+        argv++;
+        argc--;
+        if (argc < 1) {
+            fprintf(stderr, "Not enough arguments\n\n");
+            print_usage(stderr);
+            return 1;
+        }
+        value = atoi(*argv);
+        if (value > MAXVAL) {
+            value = MAXVAL;
+        } else if (value < 0) {
+            value = 0;
+        }
+        fprintf(f, "%d", value);
+        return show_notification(value);
     }
 
     fprintf(stderr, "Unknown command: %s\n\n", *argv);
